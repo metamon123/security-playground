@@ -1,0 +1,39 @@
+{
+  "name": "xs-leak-labs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Educational XS-Leak labs: download detection and WebSocket pool detection.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js all",
+    "start:download": "node index.js download",
+    "start:websocket": "node index.js websocket",
+    "check": "node --check index.js && node --check labs/download-detection/app.js && node --check labs/websocket-detection/app.js && node --check lib/cookie-utils.js && node --check lib/template-utils.js && node --check e2e/download-detection.spec.js && node --check e2e/websocket-detection.spec.js && node --check e2e/helpers/server-control.js && node --check playwright.config.js",
+    "test:e2e": "playwright test -c playwright.config.js",
+    "test:e2e:all": "npm run test:e2e",
+    "test:e2e:firefox": "playwright test -c playwright.config.js --project=firefox",
+    "test:e2e:chrome": "playwright test -c playwright.config.js --project=chrome",
+    "test:e2e:safari": "playwright test -c playwright.config.js --project=safari",
+    "test:e2e:download": "npm run test:e2e:download:all",
+    "test:e2e:download:all": "playwright test -c playwright.config.js e2e/download-detection.spec.js",
+    "test:e2e:download:firefox": "playwright test -c playwright.config.js e2e/download-detection.spec.js --project=firefox",
+    "test:e2e:download:chrome": "playwright test -c playwright.config.js e2e/download-detection.spec.js --project=chrome",
+    "test:e2e:download:safari": "playwright test -c playwright.config.js e2e/download-detection.spec.js --project=safari",
+    "test:e2e:websocket": "npm run test:e2e:websocket:all",
+    "test:e2e:websocket:all": "echo \"[note] websocket:all runs firefox+safari only by design\" && playwright test -c playwright.config.js e2e/websocket-detection.spec.js --project=firefox --project=safari",
+    "test:e2e:websocket:firefox": "playwright test -c playwright.config.js e2e/websocket-detection.spec.js --project=firefox",
+    "test:e2e:websocket:chrome": "echo \"[note] chrome is expected to fail for current websocket xs-leak payload\" && playwright test -c playwright.config.js e2e/websocket-detection.spec.js --project=chrome",
+    "test:e2e:websocket:safari": "playwright test -c playwright.config.js e2e/websocket-detection.spec.js --project=safari",
+    "playwright:install": "playwright install chromium firefox webkit"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.1"
+  }
+}

