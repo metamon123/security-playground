@@ -12,8 +12,6 @@
 - `labs/download-detection/templates/*.html`: 실험 1 HTML 템플릿
 - `labs/websocket-detection/app.js`: 실험 2 Express 서버(회사 3개 + Attacker)
 - `labs/websocket-detection/templates/*.html`: 실험 2 HTML 템플릿
-- `lib/cookie-utils.js`: 쿠키 파싱 유틸
-- `lib/template-utils.js`: 파일 템플릿 로더/치환 유틸
 - `package.json`: 의존성(`ws`) 및 실행 스크립트
 
 ## 2) 사전 준비
@@ -33,7 +31,7 @@
 127.0.0.1 company1.toy-slack.com
 127.0.0.1 company2.toy-slack.com
 127.0.0.1 company3.toy-slack.com
-127.0.0.1 attacker.toy-slack.com
+127.0.0.1 attacker.com
 ```
 
 ## 3) 설치/실행
@@ -97,7 +95,7 @@ npm start
 - Company1: `http://company1.toy-slack.com:9001/`
 - Company2: `http://company2.toy-slack.com:9002/`
 - Company3: `http://company3.toy-slack.com:9003/`
-- Attacker: `http://attacker.toy-slack.com:9004`
+- Attacker: `http://attacker.com:9004`
 
 ### 절차
 
@@ -114,7 +112,7 @@ npm start
 ### 튜닝 팁
 
 - payload 기본값은 `waitTime=3000`, `max=200`, `kill/re-fill=10` 입니다.
-- 포화용 WebSocket은 Attacker origin(`attacker.toy-slack.com`)의 `/attack-ws`에만 연결합니다.
+- 포화용 WebSocket은 Attacker origin(`attacker.com`)의 `/attack-ws`에만 연결합니다.
 - 브라우저별 한도 차이가 크므로 필요하면 코드 상수값을 조정해 재시도하세요.
 
 ## 6) 제한사항

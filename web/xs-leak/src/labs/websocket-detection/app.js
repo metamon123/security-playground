@@ -1,10 +1,10 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const { WebSocketServer } = require('ws');
-const { parseCookieHeader } = require('../../lib/cookie-utils');
-const { escapeHtml, renderTemplate } = require('../../lib/template-utils');
 
 const COMPANIES = [
   { name: 'company1', host: 'company1.toy-slack.com', port: 9001 },
@@ -13,14 +13,19 @@ const COMPANIES = [
 ];
 
 const ATTACKER = {
-  host: 'attacker.toy-slack.com',
+  host: 'attacker.com',
   port: 9004,
 };
 
 const TEMPLATE_DIR = path.join(__dirname, 'templates');
 
-function template(fileName, values) {
-  return renderTemplate(path.join(TEMPLATE_DIR, fileName), values);
+function renderTemplate(fileName, values = {}) {
+  const templatePath = path.join(TEMPLATE_DIR, fileName);
+  let html = fs.readFileSync(templatePath, 'utf8');
+  for (const [key, value] of Object.entries(values)) {
+    html = html.split(`__${key}__`).join(String(value));
+  }
+  return html;
 }
 
 function applyNoStore(req, res, next) {
@@ -32,13 +37,12 @@ function cookieName(companyName) {
   return `${companyName}_session`;
 }
 
-function isLoggedInFromCookieHeader(cookieHeader, companyName) {
-  const cookies = parseCookieHeader(cookieHeader || '');
+function isLoggedInFromCookies(cookies = {}, companyName) {
   return cookies[cookieName(companyName)] === '1';
 }
 
 function isLoggedInRequest(req, companyName) {
-  return isLoggedInFromCookieHeader(req.headers.cookie, companyName);
+  return isLoggedInFromCookies(req.cookies, companyName);
 }
 
 function getUpgradePath(req) {
@@ -52,15 +56,25 @@ function getUpgradePath(req) {
 
 function createCompanyServer(company) {
   const app = express();
+  const parsedCookies = cookieParser();
+  app.use(parsedCookies);
   app.use(applyNoStore);
 
   app.get('/login', (req, res) => {
-    res.set('Set-Cookie', `${cookieName(company.name)}=1; Path=/; HttpOnly; SameSite=Lax`);
+    res.cookie(cookieName(company.name), '1', {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+    });
     res.redirect('/');
   });
 
   app.get('/logout', (req, res) => {
-    res.set('Set-Cookie', `${cookieName(company.name)}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax`);
+    res.clearCookie(cookieName(company.name), {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+    });
     res.redirect('/');
   });
 
@@ -75,11 +89,11 @@ function createCompanyServer(company) {
       .status(200)
       .type('html')
       .send(
-        template('workspace.html', {
-          COMPANY_NAME: escapeHtml(company.name),
+        renderTemplate('workspace.html', {
+          COMPANY_NAME: company.name,
           SHOULD_CONNECT: loggedIn ? 'true' : 'false',
           STATE_CLASS: stateClass,
-          STATE_LABEL: escapeHtml(stateLabel),
+          STATE_LABEL: stateLabel,
         })
       );
   });
@@ -115,7 +129,8 @@ function createCompanyServer(company) {
       return;
     }
 
-    if (!isLoggedInFromCookieHeader(req.headers.cookie, company.name)) {
+    parsedCookies(req, {}, () => {});
+    if (!isLoggedInFromCookies(req.cookies, company.name)) {
       socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
       socket.destroy();
       return;
@@ -136,14 +151,14 @@ function createAttackerServer() {
   app.get('/', (req, res) => {
     const options = COMPANIES.map((company) => {
       const targetUrl = `http://${company.host}:${company.port}/`;
-      return `<option value="${escapeHtml(targetUrl)}">${escapeHtml(company.name)} (${escapeHtml(targetUrl)})</option>`;
+      return `<option value="${targetUrl}">${company.name} (${targetUrl})</option>`;
     }).join('');
 
     res
       .status(200)
       .type('html')
       .send(
-        template('attacker.html', {
+        renderTemplate('attacker.html', {
           TARGET_OPTIONS: options,
         })
       );

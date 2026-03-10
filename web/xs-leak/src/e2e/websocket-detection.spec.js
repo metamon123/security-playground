@@ -79,9 +79,9 @@ test.describe('websocket-detection lab', () => {
       expect(company2Probe).toContain('probe=');
       expect(company3Probe).toContain('probe=');
 
-      console.log('[websocket-detection] company1(login) :', company1Probe);
-      console.log('[websocket-detection] company2(logout):', company2Probe);
-      console.log('[websocket-detection] company3(login) :', company3Probe);
+      console.log(`[websocket-detection] company1(login) : "${company1Probe}"`);
+      console.log(`[websocket-detection] company2(logout): "${company2Probe}"`);
+      console.log(`[websocket-detection] company3(login) : "${company3Probe}"`);
 
       expect(company1Probe).not.toContain('probe=OPEN');
       expect(company2Probe).toContain('probe=OPEN');
@@ -102,7 +102,7 @@ test.describe('websocket-detection lab', () => {
       await page.goto(attackerUrl('/'));
       let company1Probe = await detectTarget(page, workspaceUrl(company1));
       expect(company1Probe).toContain('probe=');
-      console.log('[websocket-detection] company1:', company1Probe);
+      console.log(`[websocket-detection] company1: "${company1Probe}"`);
       expect(company1Probe).not.toContain('probe=OPEN');
 
       // logout & check
@@ -111,7 +111,7 @@ test.describe('websocket-detection lab', () => {
       await page.goto(attackerUrl('/'));
       company1Probe = await detectTarget(page, workspaceUrl(company1));
       expect(company1Probe).toContain('probe=');
-      console.log('[websocket-detection] company1:', company1Probe);
+      console.log(`[websocket-detection] company1: "${company1Probe}"`);
       expect(company1Probe).toContain('probe=OPEN');
     }
   );

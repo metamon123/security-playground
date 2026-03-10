@@ -1,9 +1,9 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { getCookie } = require('../../lib/cookie-utils');
-const { escapeHtml, renderTemplate } = require('../../lib/template-utils');
+const cookieParser = require('cookie-parser');
 
 const HOSTS = {
   banned: 'banned.download-lab.test',
@@ -20,12 +20,17 @@ const VISIT_COOKIE = 'banned_manual_visited';
 const MANUAL_FILENAME = '위험한-메뉴얼.pdf';
 const MANUAL_FILENAME_ENCODED = encodeURIComponent(MANUAL_FILENAME);
 
-function template(fileName, values) {
-  return renderTemplate(path.join(TEMPLATE_DIR, fileName), values);
+function renderTemplate(fileName, values = {}) {
+  const templatePath = path.join(TEMPLATE_DIR, fileName);
+  let html = fs.readFileSync(templatePath, 'utf8');
+  for (const [key, value] of Object.entries(values)) {
+    html = html.split(`__${key}__`).join(String(value));
+  }
+  return html;
 }
 
 function hasVisitedCookie(req) {
-  return getCookie(req, VISIT_COOKIE) === '1';
+  return req.cookies[VISIT_COOKIE] === '1';
 }
 
 function applyNoStore(req, res, next) {
@@ -63,6 +68,7 @@ function sendManualDownload(res, nonce) {
 
 function startDownloadLab() {
   const bannedApp = express();
+  bannedApp.use(cookieParser());
   bannedApp.use(applyNoStore);
 
   bannedApp.get('/', (req, res) => {
@@ -70,7 +76,11 @@ function startDownloadLab() {
 
     if (!visited) {
       const nonce = String(req.query.nonce || 'from-root-first-visit');
-      res.set('Set-Cookie', `${VISIT_COOKIE}=1; Path=/; HttpOnly; SameSite=Lax`);
+      res.cookie(VISIT_COOKIE, '1', {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+      });
       sendManualDownload(res, nonce);
       return;
     }
@@ -79,10 +89,10 @@ function startDownloadLab() {
       .status(200)
       .type('html')
       .send(
-        template('banned-service.html', {
-          ATTACKER_URL: escapeHtml(`http://${HOSTS.attacker}:${PORTS.attacker}`),
-          MAIN_MESSAGE: escapeHtml('이미 메뉴얼을 알고 계시죠?'),
-          DETAIL_MESSAGE: escapeHtml('방문 쿠키가 있어 파일은 더 이상 내려주지 않습니다.'),
+        renderTemplate('banned-service.html', {
+          ATTACKER_URL: `http://${HOSTS.attacker}:${PORTS.attacker}`,
+          MAIN_MESSAGE: '이미 메뉴얼을 알고 계시죠?',
+          DETAIL_MESSAGE: '방문 쿠키가 있어 파일은 더 이상 내려주지 않습니다.',
         })
       );
   });
@@ -92,6 +102,7 @@ function startDownloadLab() {
   });
 
   const attackerApp = express();
+  attackerApp.use(cookieParser());
   attackerApp.use(applyNoStore);
 
   attackerApp.get('/', (req, res) => {
@@ -104,11 +115,11 @@ function startDownloadLab() {
       .status(200)
       .type('html')
       .send(
-        template(fileName, {
-          TARGET_BASE_TEXT: escapeHtml(targetBase),
+        renderTemplate(fileName, {
+          TARGET_BASE_TEXT: targetBase,
           TARGET_BASE_JSON: JSON.stringify(targetBase),
-          ATTACKER_CLASSIC_URL: escapeHtml(attackerBase),
-          ATTACKER_STEALTH_URL: escapeHtml(`${attackerBase}?stealthier=1`),
+          ATTACKER_CLASSIC_URL: attackerBase,
+          ATTACKER_STEALTH_URL: `${attackerBase}?stealthier=1`,
         })
       );
   });

@@ -8,7 +8,7 @@
     "start": "node index.js all",
     "start:download": "node index.js download",
     "start:websocket": "node index.js websocket",
-    "check": "node --check index.js && node --check labs/download-detection/app.js && node --check labs/websocket-detection/app.js && node --check lib/cookie-utils.js && node --check lib/template-utils.js && node --check e2e/download-detection.spec.js && node --check e2e/websocket-detection.spec.js && node --check e2e/helpers/server-control.js && node --check playwright.config.js",
+    "check": "node --check index.js && node --check labs/download-detection/app.js && node --check labs/websocket-detection/app.js && node --check e2e/download-detection.spec.js && node --check e2e/websocket-detection.spec.js && node --check e2e/helpers/server-control.js && node --check playwright.config.js",
     "test:e2e": "playwright test -c playwright.config.js",
     "test:e2e:all": "npm run test:e2e",
     "test:e2e:firefox": "playwright test -c playwright.config.js --project=firefox",
@@ -30,6 +30,7 @@
     "node": ">=16"
   },
   "dependencies": {
+    "cookie-parser": "^1.4.7",
     "express": "^4.21.2",
     "ws": "^8.18.1"
   },
