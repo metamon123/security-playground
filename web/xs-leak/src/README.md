@@ -135,15 +135,27 @@ npm run check
 
 - `e2e/download-detection.spec.js`
 - `e2e/websocket-detection.spec.js`
-- `playwright.config.js` (프로젝트: `firefox`, `chrome`, `safari`)
+- `playwright.config.js` (기본 프로젝트: `download-{firefox,chrome,safari}`, `websocket-{firefox,safari}`)
 
 ### 실행
 
-전체(`*`에 해당):
+성공 보장용 기본 실행:
+
+```bash
+npm run test:e2e
+```
+
+- `test:e2e`는 `test:e2e:download` + `test:e2e:websocket` 순서로 실행합니다.
+- 의도: 안정 조합(download 3브라우저 + websocket firefox/safari) 기준으로 모두 성공해야 통과.
+
+전체 실행(관찰용):
 
 ```bash
 npm run test:e2e:all
 ```
+
+- `test:e2e:all`은 `test:e2e:download:all` + `test:e2e:websocket:all`을 모두 실행합니다.
+- 의도: 실패가 있더라도 가능한 한 전체 조합을 다 실행해 결과를 수집.
 
 브라우저별:
 
@@ -152,6 +164,10 @@ npm run test:e2e:firefox
 npm run test:e2e:chrome
 npm run test:e2e:safari
 ```
+
+- `test:e2e:firefox`: download + websocket
+- `test:e2e:chrome`: download만 실행
+- `test:e2e:safari`: download + websocket
 
 다운로드 탐지 시나리오:
 
@@ -173,8 +189,9 @@ npm run test:e2e:websocket:chrome
 npm run test:e2e:websocket:safari
 ```
 
-- `test:e2e:websocket:all`은 현재 payload 특성상 `firefox`, `safari`만 실행합니다(Chrome 제외).
-- `test:e2e:websocket:chrome`은 참고/관찰용으로 남겨두었고, 현 구현에서는 실패가 정상 동작입니다.
+- `test:e2e:websocket`은 `firefox`, `safari`만 실행합니다.
+- `test:e2e:websocket:all`은 `[note] websocket-chrome is expected to fail`를 출력한 뒤 `firefox`, `chrome`, `safari`를 모두 실행합니다.
+- `test:e2e:websocket:chrome`은 `--project=websocket-chrome`를 명시해 조건부 프로젝트로 실행합니다.
 
 ### 옵션
 
